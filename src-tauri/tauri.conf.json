@@ -1,20 +1,22 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Claudia",
+  "productName": "Claude Usage Dashboard",
   "version": "0.1.0",
-  "identifier": "claudia.asterisk.so",
+  "identifier": "claude.usage.dashboard",
   "build": {
-    "beforeDevCommand": "bun run dev",
+    "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "bun run build",
+    "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
-        "title": "Claudia",
-        "width": 800,
-        "height": 600
+        "title": "Claude Usage Dashboard",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600
       }
     ],
     "security": {
@@ -27,27 +29,6 @@
       }
     }
   },
-  "plugins": {
-    "fs": {
-      "scope": [
-        "$HOME/**"
-      ],
-      "allow": [
-        "readFile",
-        "writeFile",
-        "readDir",
-        "copyFile",
-        "createDir",
-        "removeDir",
-        "removeFile",
-        "renameFile",
-        "exists"
-      ]
-    },
-    "shell": {
-      "open": true
-    }
-  },
   "bundle": {
     "active": true,
     "targets": "all",
@@ -57,9 +38,6 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.png"
-    ],
-    "externalBin": [
-      "binaries/claude-code"
     ]
   }
 }

@@ -1,13 +1,11 @@
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/92fd93ed-e71b-4b94-b270-50684323dd00" alt="Claudia Logo" width="120" height="120">
-
-  <a href="https://claudiacode.com"><h1>Claudia</h1></a>
+  <h1>Claude Code Usage Dashboard</h1>
   
   <p>
-    <strong>A powerful GUI app and Toolkit for Claude Code</strong>
+    <strong>Track your Claude Code usage, costs, and analytics</strong>
   </p>
   <p>
-    <strong>Create custom agents, manage interactive Claude Code sessions, run secure background agents, and more.</strong>
+    <strong>A focused dashboard for monitoring Claude API consumption from your Claude Code sessions.</strong>
   </p>
   
   <p>
@@ -27,9 +25,9 @@ https://github.com/user-attachments/assets/bf0bdf9d-ba91-45af-9ac4-7274f57075cf
 
 ## 🌟 Overview
 
-**Claudia** is a powerful desktop application that transforms how you interact with Claude Code. Built with Tauri 2, it provides a beautiful GUI for managing your Claude Code sessions, creating custom agents, tracking usage, and much more.
+**Claude Code Usage Dashboard** is a focused desktop application for tracking and analyzing your Claude Code usage. Built with Tauri 2, it provides a clean interface for monitoring costs, token consumption, and usage patterns from your Claude Code sessions.
 
-Think of Claudia as your command center for Claude Code - bridging the gap between the command-line tool and a visual experience that makes AI-assisted development more intuitive and productive.
+The dashboard reads your existing Claude Code session logs from `~/.claude/projects/` and provides detailed analytics without requiring any changes to your workflow.
 
 ## 📋 Table of Contents
 
@@ -58,93 +56,46 @@ Think of Claudia as your command center for Claude Code - bridging the gap betwe
 
 ## ✨ Features
 
-### 🗂️ **Project & Session Management**
-- **Visual Project Browser**: Navigate through all your Claude Code projects in `~/.claude/projects/`
-- **Session History**: View and resume past coding sessions with full context
-- **Smart Search**: Find projects and sessions quickly with built-in search
-- **Session Insights**: See first messages, timestamps, and session metadata at a glance
-
-### 🤖 **CC Agents**
-- **Custom AI Agents**: Create specialized agents with custom system prompts and behaviors
-- **Agent Library**: Build a collection of purpose-built agents for different tasks
-- **Background Execution**: Run agents in separate processes for non-blocking operations
-- **Execution History**: Track all agent runs with detailed logs and performance metrics
-
-
-
 ### 📊 **Usage Analytics Dashboard**
 - **Cost Tracking**: Monitor your Claude API usage and costs in real-time
 - **Token Analytics**: Detailed breakdown by model, project, and time period
+- **Multi-View Analysis**: View usage by model, project, session, and date
 - **Visual Charts**: Beautiful charts showing usage trends and patterns
-- **Export Data**: Export usage data for accounting and analysis
+- **Time Range Filtering**: Filter data by date ranges (7 days, 30 days, all time)
+- **Session Tracking**: Track individual session costs and token usage
+- **Export Ready**: All data formatted for easy export and analysis
 
-### 🔌 **MCP Server Management**
-- **Server Registry**: Manage Model Context Protocol servers from a central UI
-- **Easy Configuration**: Add servers via UI or import from existing configs
-- **Connection Testing**: Verify server connectivity before use
-- **Claude Desktop Import**: Import server configurations from Claude Desktop
-
-### ⏰ **Timeline & Checkpoints**
-- **Session Versioning**: Create checkpoints at any point in your coding session
-- **Visual Timeline**: Navigate through your session history with a branching timeline
-- **Instant Restore**: Jump back to any checkpoint with one click
-- **Fork Sessions**: Create new branches from existing checkpoints
-- **Diff Viewer**: See exactly what changed between checkpoints
-
-### 📝 **CLAUDE.md Management**
-- **Built-in Editor**: Edit CLAUDE.md files directly within the app
-- **Live Preview**: See your markdown rendered in real-time
-- **Project Scanner**: Find all CLAUDE.md files in your projects
-- **Syntax Highlighting**: Full markdown support with syntax highlighting
+### 🔍 **Detailed Insights**
+- **Model Comparison**: Compare costs and usage across different Claude models
+- **Project Analytics**: See which projects consume the most tokens and cost
+- **Daily Trends**: Visualize your usage patterns over time
+- **Cache Analytics**: Track cache read/write token usage for optimization
+- **Session History**: Detailed view of each coding session's metrics
 
 ## 📖 Usage
 
 ### Getting Started
 
-1. **Launch Claudia**: Open the application after installation
-2. **Welcome Screen**: Choose between CC Agents or CC Projects
-3. **First Time Setup**: Claudia will automatically detect your `~/.claude` directory
+1. **Launch the Dashboard**: Open the application after installation
+2. **Welcome Screen**: Click "View Usage Dashboard" to start analyzing your data
+3. **Automatic Detection**: The dashboard automatically reads from your `~/.claude/projects/` directory
 
-### Managing Projects
+### Understanding Your Data
 
-```
-CC Projects → Select Project → View Sessions → Resume or Start New
-```
+The dashboard provides multiple views of your Claude Code usage:
 
-- Click on any project to view its sessions
-- Each session shows the first message and timestamp
-- Resume sessions directly or start new ones
+- **Overview**: Summary cards showing total costs, sessions, and tokens
+- **By Model**: Breakdown of usage by Claude model (Opus 4, Sonnet 4, etc.)
+- **By Project**: See which projects are consuming the most resources
+- **By Session**: Individual session tracking with costs and dates
+- **Timeline**: Daily usage trends with interactive charts
 
-### Creating Agents
+### Filtering and Analysis
 
-```
-CC Agents → Create Agent → Configure → Execute
-```
-
-1. **Design Your Agent**: Set name, icon, and system prompt
-2. **Configure Model**: Choose between available Claude models
-3. **Set Permissions**: Configure file read/write and network access
-4. **Execute Tasks**: Run your agent on any project
-
-### Tracking Usage
-
-```
-Menu → Usage Dashboard → View Analytics
-```
-
-- Monitor costs by model, project, and date
-- Export data for reports
-- Set up usage alerts (coming soon)
-
-### Working with MCP Servers
-
-```
-Menu → MCP Manager → Add Server → Configure
-```
-
-- Add servers manually or via JSON
-- Import from Claude Desktop configuration
-- Test connections before using
+- Use the date range filters (All Time, Last 30 Days, Last 7 Days)
+- Switch between different tabs to explore various aspects of your usage
+- Hover over charts for detailed information
+- All monetary amounts are displayed in USD with precise formatting
 
 ## 🚀 Installation
 

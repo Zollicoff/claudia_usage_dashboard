@@ -4,7 +4,14 @@ use serde_json;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock};
 use tauri::command;
+
+// Simple cache to avoid re-reading all files every time
+static USAGE_CACHE: OnceLock<Mutex<(std::time::SystemTime, Vec<UsageEntry>)>> = OnceLock::new();
+
+// Background preloader
+static PRELOADER_STARTED: OnceLock<bool> = OnceLock::new();
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct UsageEntry {
@@ -249,7 +256,42 @@ fn get_earliest_timestamp(path: &PathBuf) -> Option<String> {
     None
 }
 
+// Background preloader function
+fn preload_usage_data() {
+    if PRELOADER_STARTED.get().is_some() {
+        return; // Already started
+    }
+    
+    PRELOADER_STARTED.set(true).ok();
+    
+    std::thread::spawn(|| {
+        if let Some(claude_path) = dirs::home_dir().map(|h| h.join(".claude")) {
+            let _ = get_all_usage_entries_internal(&claude_path);
+        }
+    });
+}
+
 fn get_all_usage_entries(claude_path: &PathBuf) -> Vec<UsageEntry> {
+    // Start preloader if not already started
+    preload_usage_data();
+    
+    get_all_usage_entries_internal(claude_path)
+}
+
+fn get_all_usage_entries_internal(claude_path: &PathBuf) -> Vec<UsageEntry> {
+    let cache = USAGE_CACHE.get_or_init(|| Mutex::new((std::time::SystemTime::UNIX_EPOCH, Vec::new())));
+    
+    // Check if we have cached data that's less than 30 seconds old
+    if let Ok(guard) = cache.lock() {
+        let (cache_time, cached_entries) = &*guard;
+        if let Ok(elapsed) = cache_time.elapsed() {
+            if elapsed.as_secs() < 30 && !cached_entries.is_empty() {
+                return cached_entries.clone();
+            }
+        }
+    }
+    
+    // Cache is stale or empty, rebuild it
     let mut all_entries = Vec::new();
     let mut processed_hashes = HashSet::new();
     let projects_dir = claude_path.join("projects");
@@ -274,7 +316,7 @@ fn get_all_usage_entries(claude_path: &PathBuf) -> Vec<UsageEntry> {
     }
 
     // Sort files by their earliest timestamp to ensure chronological processing
-    // and deterministic deduplication.
+    // and deterministic deduplication (but only if cache is empty)
     files_to_process.sort_by_cached_key(|(path, _)| get_earliest_timestamp(path));
 
     for (path, project_name) in files_to_process {
@@ -284,6 +326,11 @@ fn get_all_usage_entries(claude_path: &PathBuf) -> Vec<UsageEntry> {
 
     // Sort by timestamp
     all_entries.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+
+    // Update cache
+    if let Ok(mut guard) = cache.lock() {
+        *guard = (std::time::SystemTime::now(), all_entries.clone());
+    }
 
     all_entries
 }
@@ -712,3 +759,4 @@ pub fn get_session_stats(
 
     Ok(by_session)
 }
+
