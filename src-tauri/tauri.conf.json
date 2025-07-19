@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Claude Usage Dashboard",
+  "productName": "Claudia Usage Dashboard",
   "version": "0.1.0",
   "identifier": "claude.usage.dashboard",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Claude Usage Dashboard",
+        "title": "Claudia Usage Dashboard",
         "width": 1200,
         "height": 800,
         "minWidth": 800,

@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "license": "AGPL-3.0",
-  "description": "Claude Code Usage Dashboard",
+  "description": "Claudia Usage Dashboard",
   "type": "module",
   "scripts": {
     "dev": "vite",
