@@ -4,7 +4,7 @@
 mod commands;
 
 use commands::usage::{
-    get_session_stats, get_usage_by_date_range, get_usage_details, get_usage_stats,
+    get_session_stats, get_usage_by_date_range, get_usage_details, get_usage_stats, init_usage_cache,
 };
 
 fn main() {
@@ -26,6 +26,7 @@ fn main() {
             get_usage_by_date_range,
             get_usage_details,
             get_session_stats,
+            init_usage_cache,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

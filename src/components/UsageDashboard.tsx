@@ -14,7 +14,9 @@ import {
   DollarSign,
   Activity,
   FileText,
-  Briefcase
+  Briefcase,
+  Clock,
+  RefreshCw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -38,14 +40,34 @@ export const UsageDashboard: React.FC<UsageDashboardProps> = ({ onBack }) => {
   const [sessionStats, setSessionStats] = useState<ProjectUsage[] | null>(null);
   const [selectedDateRange, setSelectedDateRange] = useState<"all" | "7d" | "30d">("all");
   const [activeTab, setActiveTab] = useState("overview");
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Auto-refresh interval in milliseconds (60 seconds default)
+  const REFRESH_INTERVAL = 60000;
 
   useEffect(() => {
     loadUsageStats();
   }, [selectedDateRange]);
 
-  const loadUsageStats = async () => {
+  // Auto-refresh effect
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadUsageStats(true); // true indicates it's an auto-refresh
+    }, REFRESH_INTERVAL);
+
+    // Cleanup interval on unmount
+    return () => clearInterval(interval);
+  }, [selectedDateRange]); // Re-create interval if date range changes
+
+  const loadUsageStats = async (isAutoRefresh = false) => {
     try {
-      setLoading(true);
+      // Only show loading spinner on initial load, not on auto-refresh
+      if (!isAutoRefresh) {
+        setLoading(true);
+      } else {
+        setIsRefreshing(true);
+      }
       setError(null);
 
       let statsData: UsageStats;
@@ -80,11 +102,13 @@ export const UsageDashboard: React.FC<UsageDashboardProps> = ({ onBack }) => {
       
       setStats(statsData);
       setSessionStats(sessionData);
+      setLastRefresh(new Date());
     } catch (err) {
       console.error("Failed to load usage stats:", err);
       setError("Failed to load usage statistics. Please try again.");
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -126,6 +150,19 @@ export const UsageDashboard: React.FC<UsageDashboardProps> = ({ onBack }) => {
     return "text-gray-500";
   };
 
+  const formatLastRefresh = (date: Date | null): string => {
+    if (!date) return "Never";
+    
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSecs = Math.floor(diffMs / 1000);
+    
+    if (diffSecs < 60) return "Just now";
+    if (diffSecs < 3600) return `${Math.floor(diffSecs / 60)}m ago`;
+    if (diffSecs < 86400) return `${Math.floor(diffSecs / 3600)}h ago`;
+    return date.toLocaleTimeString();
+  };
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
@@ -151,6 +188,26 @@ export const UsageDashboard: React.FC<UsageDashboardProps> = ({ onBack }) => {
                 Track your Claude Code usage and costs
               </p>
             </div>
+          </div>
+          
+          {/* Refresh Indicator */}
+          <div className="flex items-center space-x-4">
+            {lastRefresh && (
+              <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                <Clock className="h-3 w-3" />
+                <span>Updated {formatLastRefresh(lastRefresh)}</span>
+              </div>
+            )}
+            
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => loadUsageStats(false)}
+              disabled={isRefreshing}
+              className="h-8 w-8"
+            >
+              <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+            </Button>
           </div>
           
           {/* Date Range Filter */}
@@ -186,7 +243,7 @@ export const UsageDashboard: React.FC<UsageDashboardProps> = ({ onBack }) => {
           <div className="flex items-center justify-center h-full">
             <div className="text-center max-w-md">
               <p className="text-sm text-destructive mb-4">{error}</p>
-              <Button onClick={loadUsageStats} size="sm">
+              <Button onClick={() => loadUsageStats(false)} size="sm">
                 Try Again
               </Button>
             </div>

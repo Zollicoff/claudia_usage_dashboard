@@ -6,12 +6,27 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 use tauri::command;
+use std::time::SystemTime;
 
 // Simple cache to avoid re-reading all files every time
 static USAGE_CACHE: OnceLock<Mutex<(std::time::SystemTime, Vec<UsageEntry>)>> = OnceLock::new();
 
 // Background preloader
 static PRELOADER_STARTED: OnceLock<bool> = OnceLock::new();
+
+// Index-based cache structure
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct UsageIndex {
+    last_updated: SystemTime,
+    file_metadata: HashMap<PathBuf, FileMetadata>,
+    entries: Vec<UsageEntry>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct FileMetadata {
+    last_modified: SystemTime,
+    entry_count: usize,
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct UsageEntry {
@@ -256,7 +271,7 @@ fn get_earliest_timestamp(path: &PathBuf) -> Option<String> {
     None
 }
 
-// Background preloader function
+// Background preloader function - start loading data immediately on app start
 fn preload_usage_data() {
     if PRELOADER_STARTED.get().is_some() {
         return; // Already started
@@ -266,7 +281,10 @@ fn preload_usage_data() {
     
     std::thread::spawn(|| {
         if let Some(claude_path) = dirs::home_dir().map(|h| h.join(".claude")) {
-            let _ = get_all_usage_entries_internal(&claude_path);
+            eprintln!("Starting background preload of usage data...");
+            let start = std::time::Instant::now();
+            let entries = get_all_usage_entries_internal(&claude_path);
+            eprintln!("Preloaded {} entries in {:?}", entries.len(), start.elapsed());
         }
     });
 }
@@ -281,11 +299,11 @@ fn get_all_usage_entries(claude_path: &PathBuf) -> Vec<UsageEntry> {
 fn get_all_usage_entries_internal(claude_path: &PathBuf) -> Vec<UsageEntry> {
     let cache = USAGE_CACHE.get_or_init(|| Mutex::new((std::time::SystemTime::UNIX_EPOCH, Vec::new())));
     
-    // Check if we have cached data that's less than 30 seconds old
+    // Check if we have cached data that's less than 5 minutes old
     if let Ok(guard) = cache.lock() {
         let (cache_time, cached_entries) = &*guard;
         if let Ok(elapsed) = cache_time.elapsed() {
-            if elapsed.as_secs() < 30 && !cached_entries.is_empty() {
+            if elapsed.as_secs() < 300 && !cached_entries.is_empty() {
                 return cached_entries.clone();
             }
         }
@@ -758,5 +776,12 @@ pub fn get_session_stats(
     }
 
     Ok(by_session)
+}
+
+#[command]
+pub fn init_usage_cache() -> Result<(), String> {
+    // Start preloading data in the background
+    preload_usage_data();
+    Ok(())
 }
 

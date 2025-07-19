@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { UsageDashboard } from "@/components/UsageDashboard";
 import { api } from "@/lib/api";
+import { invoke } from "@tauri-apps/api/core";
 
 /**
  * AppContent component - Simple usage dashboard app
@@ -10,8 +11,11 @@ function AppContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [dataReady, setDataReady] = useState(false);
 
-  // Check if data is ready periodically
+  // Initialize cache and check if data is ready periodically
   useEffect(() => {
+    // Initialize the cache in the background
+    invoke("init_usage_cache").catch(console.error);
+    
     const checkDataReady = async () => {
       try {
         // Quick test call to see if data is cached
