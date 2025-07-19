@@ -2,6 +2,8 @@
 
 **A focused desktop application for tracking and analyzing your Claude Code usage and costs.**
 
+![Claudia Usage Dashboard Screenshot](screenshots/Screenshot%202025-07-18%20at%2018.01.55.png)
+
 ## 🌟 Overview
 
 Claudia Usage Dashboard is a lightweight desktop application that analyzes your existing Claude Code session logs and provides detailed usage analytics. Built with Tauri 2 for optimal performance, it reads from your `~/.claude/projects/` directory to display costs, token consumption, and usage patterns.
