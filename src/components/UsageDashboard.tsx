@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -46,21 +46,7 @@ export const UsageDashboard: React.FC<UsageDashboardProps> = ({ onBack }) => {
   // Auto-refresh interval in milliseconds (60 seconds default)
   const REFRESH_INTERVAL = 60000;
 
-  useEffect(() => {
-    loadUsageStats();
-  }, [selectedDateRange]);
-
-  // Auto-refresh effect
-  useEffect(() => {
-    const interval = setInterval(() => {
-      loadUsageStats(true); // true indicates it's an auto-refresh
-    }, REFRESH_INTERVAL);
-
-    // Cleanup interval on unmount
-    return () => clearInterval(interval);
-  }, [selectedDateRange]); // Re-create interval if date range changes
-
-  const loadUsageStats = async (isAutoRefresh = false) => {
+  const loadUsageStats = useCallback(async (isAutoRefresh = false) => {
     try {
       // Only show loading spinner on initial load, not on auto-refresh
       if (!isAutoRefresh) {
@@ -72,7 +58,7 @@ export const UsageDashboard: React.FC<UsageDashboardProps> = ({ onBack }) => {
 
       let statsData: UsageStats;
       let sessionData: ProjectUsage[];
-      
+
       if (selectedDateRange === "all") {
         statsData = await api.getUsageStats();
         sessionData = await api.getSessionStats();
@@ -81,7 +67,7 @@ export const UsageDashboard: React.FC<UsageDashboardProps> = ({ onBack }) => {
         const startDate = new Date();
         const days = selectedDateRange === "7d" ? 7 : 30;
         startDate.setDate(startDate.getDate() - days);
-        
+
         const formatDateForApi = (date: Date) => {
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -99,7 +85,7 @@ export const UsageDashboard: React.FC<UsageDashboardProps> = ({ onBack }) => {
             'desc'
         );
       }
-      
+
       setStats(statsData);
       setSessionStats(sessionData);
       setLastRefresh(new Date());
@@ -110,7 +96,21 @@ export const UsageDashboard: React.FC<UsageDashboardProps> = ({ onBack }) => {
       setLoading(false);
       setIsRefreshing(false);
     }
-  };
+  }, [selectedDateRange]);
+
+  useEffect(() => {
+    loadUsageStats();
+  }, [loadUsageStats]);
+
+  // Auto-refresh effect
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadUsageStats(true); // true indicates it's an auto-refresh
+    }, REFRESH_INTERVAL);
+
+    // Cleanup interval on unmount
+    return () => clearInterval(interval);
+  }, [loadUsageStats]);
 
   const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat('en-US', {
@@ -135,18 +135,63 @@ export const UsageDashboard: React.FC<UsageDashboardProps> = ({ onBack }) => {
   };
 
   const getModelDisplayName = (model: string): string => {
-    const modelMap: Record<string, string> = {
-      "claude-4-opus": "Opus 4",
-      "claude-4-sonnet": "Sonnet 4",
-      "claude-3.5-sonnet": "Sonnet 3.5",
-      "claude-3-opus": "Opus 3",
-    };
-    return modelMap[model] || model;
+    const modelLower = model.toLowerCase();
+
+    // Check patterns in order of specificity (more specific first)
+    // Opus models
+    if (modelLower.includes("opus-4-5") || modelLower.includes("opus-4.5") ||
+        modelLower.includes("claude-opus-4-5") || modelLower.includes("claude-opus-4.5")) {
+      return "Opus 4.5";
+    }
+    if (modelLower.includes("opus-4-1") || modelLower.includes("opus-4.1") ||
+        modelLower.includes("claude-opus-4-1") || modelLower.includes("claude-opus-4.1")) {
+      return "Opus 4.1";
+    }
+    if (modelLower.includes("opus-4") || modelLower.includes("claude-opus-4")) {
+      return "Opus 4";
+    }
+    if (modelLower.includes("opus-3") || modelLower.includes("claude-3-opus")) {
+      return "Opus 3";
+    }
+
+    // Sonnet models
+    if (modelLower.includes("sonnet-4-5") || modelLower.includes("sonnet-4.5") ||
+        modelLower.includes("claude-sonnet-4-5") || modelLower.includes("claude-sonnet-4.5")) {
+      return "Sonnet 4.5";
+    }
+    if (modelLower.includes("sonnet-4") || modelLower.includes("claude-sonnet-4")) {
+      return "Sonnet 4";
+    }
+    if (modelLower.includes("sonnet-3-7") || modelLower.includes("sonnet-3.7") ||
+        modelLower.includes("claude-3-7-sonnet") || modelLower.includes("claude-3.7-sonnet")) {
+      return "Sonnet 3.7";
+    }
+    if (modelLower.includes("sonnet-3-5") || modelLower.includes("sonnet-3.5") ||
+        modelLower.includes("claude-3-5-sonnet") || modelLower.includes("claude-3.5-sonnet")) {
+      return "Sonnet 3.5";
+    }
+
+    // Haiku models
+    if (modelLower.includes("haiku-4-5") || modelLower.includes("haiku-4.5") ||
+        modelLower.includes("claude-haiku-4-5") || modelLower.includes("claude-haiku-4.5")) {
+      return "Haiku 4.5";
+    }
+    if (modelLower.includes("haiku-3-5") || modelLower.includes("haiku-3.5") ||
+        modelLower.includes("claude-3-5-haiku") || modelLower.includes("claude-3.5-haiku")) {
+      return "Haiku 3.5";
+    }
+    if (modelLower.includes("haiku-3") || modelLower.includes("claude-3-haiku")) {
+      return "Haiku 3";
+    }
+
+    return model;
   };
 
   const getModelColor = (model: string): string => {
-    if (model.includes("opus")) return "text-purple-500";
-    if (model.includes("sonnet")) return "text-blue-500";
+    const modelLower = model.toLowerCase();
+    if (modelLower.includes("opus")) return "text-purple-500";
+    if (modelLower.includes("sonnet")) return "text-blue-500";
+    if (modelLower.includes("haiku")) return "text-green-500";
     return "text-gray-500";
   };
 
@@ -464,7 +509,7 @@ export const UsageDashboard: React.FC<UsageDashboardProps> = ({ onBack }) => {
                         <div className="text-right">
                           <p className="text-sm font-semibold">{formatCurrency(project.total_cost)}</p>
                           <p className="text-xs text-muted-foreground">
-                            {formatCurrency(project.total_cost / project.session_count)}/session
+                            {formatCurrency(project.session_count > 0 ? project.total_cost / project.session_count : 0)}/session
                           </p>
                         </div>
                       </div>

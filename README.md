@@ -89,7 +89,6 @@ This project is licensed under the AGPL License - see the [LICENSE](LICENSE) fil
 ## 🙏 Acknowledgments
 
 - Built with [Tauri](https://tauri.app/)
-- [Claude Code](https://claude.ai/code) by Anthropic
 - Forked from [Claudia](https://github.com/getAsterisk/claudia) by Asterisk
 
 ---

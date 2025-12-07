@@ -6,27 +6,12 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 use tauri::command;
-use std::time::SystemTime;
 
 // Simple cache to avoid re-reading all files every time
 static USAGE_CACHE: OnceLock<Mutex<(std::time::SystemTime, Vec<UsageEntry>)>> = OnceLock::new();
 
 // Background preloader
 static PRELOADER_STARTED: OnceLock<bool> = OnceLock::new();
-
-// Index-based cache structure
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct UsageIndex {
-    last_updated: SystemTime,
-    file_metadata: HashMap<PathBuf, FileMetadata>,
-    entries: Vec<UsageEntry>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct FileMetadata {
-    last_modified: SystemTime,
-    entry_count: usize,
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct UsageEntry {
@@ -85,16 +70,73 @@ pub struct ProjectUsage {
     last_used: String,
 }
 
-// Claude 4 pricing constants (per million tokens)
+// Claude pricing constants (per million tokens)
+
+// Opus 4.5
+const OPUS_4_5_INPUT_PRICE: f64 = 5.0;
+const OPUS_4_5_OUTPUT_PRICE: f64 = 25.0;
+const OPUS_4_5_CACHE_WRITE_PRICE: f64 = 6.25;
+const OPUS_4_5_CACHE_READ_PRICE: f64 = 0.50;
+
+// Opus 4.1
+const OPUS_4_1_INPUT_PRICE: f64 = 15.0;
+const OPUS_4_1_OUTPUT_PRICE: f64 = 75.0;
+const OPUS_4_1_CACHE_WRITE_PRICE: f64 = 18.75;
+const OPUS_4_1_CACHE_READ_PRICE: f64 = 1.50;
+
+// Opus 4
 const OPUS_4_INPUT_PRICE: f64 = 15.0;
 const OPUS_4_OUTPUT_PRICE: f64 = 75.0;
 const OPUS_4_CACHE_WRITE_PRICE: f64 = 18.75;
 const OPUS_4_CACHE_READ_PRICE: f64 = 1.50;
 
+// Opus 3 (deprecated)
+const OPUS_3_INPUT_PRICE: f64 = 15.0;
+const OPUS_3_OUTPUT_PRICE: f64 = 75.0;
+const OPUS_3_CACHE_WRITE_PRICE: f64 = 18.75;
+const OPUS_3_CACHE_READ_PRICE: f64 = 1.50;
+
+// Sonnet 4.5
+const SONNET_4_5_INPUT_PRICE: f64 = 3.0;
+const SONNET_4_5_OUTPUT_PRICE: f64 = 15.0;
+const SONNET_4_5_CACHE_WRITE_PRICE: f64 = 3.75;
+const SONNET_4_5_CACHE_READ_PRICE: f64 = 0.30;
+
+// Sonnet 4
 const SONNET_4_INPUT_PRICE: f64 = 3.0;
 const SONNET_4_OUTPUT_PRICE: f64 = 15.0;
 const SONNET_4_CACHE_WRITE_PRICE: f64 = 3.75;
 const SONNET_4_CACHE_READ_PRICE: f64 = 0.30;
+
+// Sonnet 3.7 (deprecated) - same as Sonnet 3.5
+const SONNET_3_7_INPUT_PRICE: f64 = 3.0;
+const SONNET_3_7_OUTPUT_PRICE: f64 = 15.0;
+const SONNET_3_7_CACHE_WRITE_PRICE: f64 = 3.75;
+const SONNET_3_7_CACHE_READ_PRICE: f64 = 0.30;
+
+// Sonnet 3.5
+const SONNET_3_5_INPUT_PRICE: f64 = 3.0;
+const SONNET_3_5_OUTPUT_PRICE: f64 = 15.0;
+const SONNET_3_5_CACHE_WRITE_PRICE: f64 = 3.75;
+const SONNET_3_5_CACHE_READ_PRICE: f64 = 0.30;
+
+// Haiku 4.5
+const HAIKU_4_5_INPUT_PRICE: f64 = 1.0;
+const HAIKU_4_5_OUTPUT_PRICE: f64 = 5.0;
+const HAIKU_4_5_CACHE_WRITE_PRICE: f64 = 1.25;
+const HAIKU_4_5_CACHE_READ_PRICE: f64 = 0.10;
+
+// Haiku 3.5
+const HAIKU_3_5_INPUT_PRICE: f64 = 0.80;
+const HAIKU_3_5_OUTPUT_PRICE: f64 = 4.0;
+const HAIKU_3_5_CACHE_WRITE_PRICE: f64 = 1.0;
+const HAIKU_3_5_CACHE_READ_PRICE: f64 = 0.08;
+
+// Haiku 3
+const HAIKU_3_INPUT_PRICE: f64 = 0.25;
+const HAIKU_3_OUTPUT_PRICE: f64 = 1.25;
+const HAIKU_3_CACHE_WRITE_PRICE: f64 = 0.30;
+const HAIKU_3_CACHE_READ_PRICE: f64 = 0.03;
 
 #[derive(Debug, Deserialize)]
 struct JsonlEntry {
@@ -129,34 +171,137 @@ fn calculate_cost(model: &str, usage: &UsageData) -> f64 {
     let cache_creation_tokens = usage.cache_creation_input_tokens.unwrap_or(0) as f64;
     let cache_read_tokens = usage.cache_read_input_tokens.unwrap_or(0) as f64;
 
-    // Calculate cost based on model
+    let model_lower = model.to_lowercase();
+
+    // Calculate cost based on model (check more specific patterns first)
+    // Order matters: check longer/more specific patterns before shorter ones
     let (input_price, output_price, cache_write_price, cache_read_price) =
-        if model.contains("opus-4") || model.contains("claude-opus-4") {
+        // Opus 4.5
+        if model_lower.contains("opus-4-5")
+            || model_lower.contains("opus-4.5")
+            || model_lower.contains("claude-opus-4-5")
+            || model_lower.contains("claude-opus-4.5")
+        {
+            (
+                OPUS_4_5_INPUT_PRICE,
+                OPUS_4_5_OUTPUT_PRICE,
+                OPUS_4_5_CACHE_WRITE_PRICE,
+                OPUS_4_5_CACHE_READ_PRICE,
+            )
+        // Opus 4.1
+        } else if model_lower.contains("opus-4-1")
+            || model_lower.contains("opus-4.1")
+            || model_lower.contains("claude-opus-4-1")
+            || model_lower.contains("claude-opus-4.1")
+        {
+            (
+                OPUS_4_1_INPUT_PRICE,
+                OPUS_4_1_OUTPUT_PRICE,
+                OPUS_4_1_CACHE_WRITE_PRICE,
+                OPUS_4_1_CACHE_READ_PRICE,
+            )
+        // Opus 4 (must come after 4.5 and 4.1)
+        } else if model_lower.contains("opus-4") || model_lower.contains("claude-opus-4") {
             (
                 OPUS_4_INPUT_PRICE,
                 OPUS_4_OUTPUT_PRICE,
                 OPUS_4_CACHE_WRITE_PRICE,
                 OPUS_4_CACHE_READ_PRICE,
             )
-        } else if model.contains("sonnet-4") || model.contains("claude-sonnet-4") {
+        // Opus 3
+        } else if model_lower.contains("opus-3") || model_lower.contains("claude-3-opus") {
+            (
+                OPUS_3_INPUT_PRICE,
+                OPUS_3_OUTPUT_PRICE,
+                OPUS_3_CACHE_WRITE_PRICE,
+                OPUS_3_CACHE_READ_PRICE,
+            )
+        // Sonnet 4.5
+        } else if model_lower.contains("sonnet-4-5")
+            || model_lower.contains("sonnet-4.5")
+            || model_lower.contains("claude-sonnet-4-5")
+            || model_lower.contains("claude-sonnet-4.5")
+        {
+            (
+                SONNET_4_5_INPUT_PRICE,
+                SONNET_4_5_OUTPUT_PRICE,
+                SONNET_4_5_CACHE_WRITE_PRICE,
+                SONNET_4_5_CACHE_READ_PRICE,
+            )
+        // Sonnet 4 (must come after 4.5)
+        } else if model_lower.contains("sonnet-4") || model_lower.contains("claude-sonnet-4") {
             (
                 SONNET_4_INPUT_PRICE,
                 SONNET_4_OUTPUT_PRICE,
                 SONNET_4_CACHE_WRITE_PRICE,
                 SONNET_4_CACHE_READ_PRICE,
             )
+        // Sonnet 3.7 (deprecated)
+        } else if model_lower.contains("sonnet-3-7")
+            || model_lower.contains("sonnet-3.7")
+            || model_lower.contains("claude-3-7-sonnet")
+            || model_lower.contains("claude-3.7-sonnet")
+        {
+            (
+                SONNET_3_7_INPUT_PRICE,
+                SONNET_3_7_OUTPUT_PRICE,
+                SONNET_3_7_CACHE_WRITE_PRICE,
+                SONNET_3_7_CACHE_READ_PRICE,
+            )
+        // Sonnet 3.5
+        } else if model_lower.contains("sonnet-3-5")
+            || model_lower.contains("sonnet-3.5")
+            || model_lower.contains("claude-3-5-sonnet")
+            || model_lower.contains("claude-3.5-sonnet")
+        {
+            (
+                SONNET_3_5_INPUT_PRICE,
+                SONNET_3_5_OUTPUT_PRICE,
+                SONNET_3_5_CACHE_WRITE_PRICE,
+                SONNET_3_5_CACHE_READ_PRICE,
+            )
+        // Haiku 4.5
+        } else if model_lower.contains("haiku-4-5")
+            || model_lower.contains("haiku-4.5")
+            || model_lower.contains("claude-haiku-4-5")
+            || model_lower.contains("claude-haiku-4.5")
+        {
+            (
+                HAIKU_4_5_INPUT_PRICE,
+                HAIKU_4_5_OUTPUT_PRICE,
+                HAIKU_4_5_CACHE_WRITE_PRICE,
+                HAIKU_4_5_CACHE_READ_PRICE,
+            )
+        // Haiku 3.5
+        } else if model_lower.contains("haiku-3-5")
+            || model_lower.contains("haiku-3.5")
+            || model_lower.contains("claude-3-5-haiku")
+            || model_lower.contains("claude-3.5-haiku")
+        {
+            (
+                HAIKU_3_5_INPUT_PRICE,
+                HAIKU_3_5_OUTPUT_PRICE,
+                HAIKU_3_5_CACHE_WRITE_PRICE,
+                HAIKU_3_5_CACHE_READ_PRICE,
+            )
+        // Haiku 3
+        } else if model_lower.contains("haiku-3") || model_lower.contains("claude-3-haiku") {
+            (
+                HAIKU_3_INPUT_PRICE,
+                HAIKU_3_OUTPUT_PRICE,
+                HAIKU_3_CACHE_WRITE_PRICE,
+                HAIKU_3_CACHE_READ_PRICE,
+            )
         } else {
-            // Return 0 for unknown models to avoid incorrect cost estimations.
+            // Return 0 for unknown models to avoid incorrect cost estimations
             (0.0, 0.0, 0.0, 0.0)
         };
 
     // Calculate cost (prices are per million tokens)
-    let cost = (input_tokens * input_price / 1_000_000.0)
+    (input_tokens * input_price / 1_000_000.0)
         + (output_tokens * output_price / 1_000_000.0)
         + (cache_creation_tokens * cache_write_price / 1_000_000.0)
-        + (cache_read_tokens * cache_read_price / 1_000_000.0);
-
-    cost
+        + (cache_read_tokens * cache_read_price / 1_000_000.0)
 }
 
 fn parse_jsonl_file(
@@ -250,23 +395,21 @@ fn parse_jsonl_file(
     entries
 }
 
-fn get_earliest_timestamp(path: &PathBuf) -> Option<String> {
-    if let Ok(content) = fs::read_to_string(path) {
-        let mut earliest_timestamp: Option<String> = None;
-        for line in content.lines() {
-            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(line) {
+fn get_first_timestamp(path: &PathBuf) -> Option<String> {
+    use std::io::{BufRead, BufReader};
+
+    // Only read first few lines to find a timestamp - JSONL files are typically chronological
+    let file = fs::File::open(path).ok()?;
+    let reader = BufReader::new(file);
+
+    for line in reader.lines().take(10) {
+        if let Ok(line) = line {
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&line) {
                 if let Some(timestamp_str) = json_value.get("timestamp").and_then(|v| v.as_str()) {
-                    if let Some(current_earliest) = &earliest_timestamp {
-                        if timestamp_str < current_earliest.as_str() {
-                            earliest_timestamp = Some(timestamp_str.to_string());
-                        }
-                    } else {
-                        earliest_timestamp = Some(timestamp_str.to_string());
-                    }
+                    return Some(timestamp_str.to_string());
                 }
             }
         }
-        return earliest_timestamp;
     }
     None
 }
@@ -333,9 +476,8 @@ fn get_all_usage_entries_internal(claude_path: &PathBuf) -> Vec<UsageEntry> {
         }
     }
 
-    // Sort files by their earliest timestamp to ensure chronological processing
-    // and deterministic deduplication (but only if cache is empty)
-    files_to_process.sort_by_cached_key(|(path, _)| get_earliest_timestamp(path));
+    // Sort files by their first timestamp for deterministic deduplication
+    files_to_process.sort_by_cached_key(|(path, _)| get_first_timestamp(path));
 
     for (path, project_name) in files_to_process {
         let entries = parse_jsonl_file(&path, &project_name, &mut processed_hashes);
@@ -353,16 +495,10 @@ fn get_all_usage_entries_internal(claude_path: &PathBuf) -> Vec<UsageEntry> {
     all_entries
 }
 
-#[command]
-pub fn get_usage_stats(days: Option<u32>) -> Result<UsageStats, String> {
-    let claude_path = dirs::home_dir()
-        .ok_or("Failed to get home directory")?
-        .join(".claude");
-
-    let all_entries = get_all_usage_entries(&claude_path);
-
-    if all_entries.is_empty() {
-        return Ok(UsageStats {
+/// Aggregates a slice of UsageEntry into UsageStats
+fn aggregate_entries(entries: &[UsageEntry]) -> UsageStats {
+    if entries.is_empty() {
+        return UsageStats {
             total_cost: 0.0,
             total_tokens: 0,
             total_input_tokens: 0,
@@ -373,11 +509,137 @@ pub fn get_usage_stats(days: Option<u32>) -> Result<UsageStats, String> {
             by_model: vec![],
             by_date: vec![],
             by_project: vec![],
-        });
+        };
     }
 
+    let mut total_cost = 0.0;
+    let mut total_input_tokens = 0u64;
+    let mut total_output_tokens = 0u64;
+    let mut total_cache_creation_tokens = 0u64;
+    let mut total_cache_read_tokens = 0u64;
+
+    let mut model_stats: HashMap<String, ModelUsage> = HashMap::new();
+    let mut daily_stats: HashMap<String, DailyUsage> = HashMap::new();
+    let mut project_stats: HashMap<String, ProjectUsage> = HashMap::new();
+
+    for entry in entries {
+        // Update totals
+        total_cost += entry.cost;
+        total_input_tokens += entry.input_tokens;
+        total_output_tokens += entry.output_tokens;
+        total_cache_creation_tokens += entry.cache_creation_tokens;
+        total_cache_read_tokens += entry.cache_read_tokens;
+
+        // Update model stats
+        let model_stat = model_stats
+            .entry(entry.model.clone())
+            .or_insert(ModelUsage {
+                model: entry.model.clone(),
+                total_cost: 0.0,
+                total_tokens: 0,
+                input_tokens: 0,
+                output_tokens: 0,
+                cache_creation_tokens: 0,
+                cache_read_tokens: 0,
+                session_count: 0,
+            });
+        model_stat.total_cost += entry.cost;
+        model_stat.input_tokens += entry.input_tokens;
+        model_stat.output_tokens += entry.output_tokens;
+        model_stat.cache_creation_tokens += entry.cache_creation_tokens;
+        model_stat.cache_read_tokens += entry.cache_read_tokens;
+        model_stat.total_tokens = model_stat.input_tokens + model_stat.output_tokens;
+        model_stat.session_count += 1;
+
+        // Update daily stats
+        let date = entry
+            .timestamp
+            .split('T')
+            .next()
+            .unwrap_or(&entry.timestamp)
+            .to_string();
+        let daily_stat = daily_stats.entry(date.clone()).or_insert(DailyUsage {
+            date,
+            total_cost: 0.0,
+            total_tokens: 0,
+            models_used: vec![],
+        });
+        daily_stat.total_cost += entry.cost;
+        daily_stat.total_tokens += entry.input_tokens
+            + entry.output_tokens
+            + entry.cache_creation_tokens
+            + entry.cache_read_tokens;
+        if !daily_stat.models_used.contains(&entry.model) {
+            daily_stat.models_used.push(entry.model.clone());
+        }
+
+        // Update project stats
+        let project_stat = project_stats
+            .entry(entry.project_path.clone())
+            .or_insert(ProjectUsage {
+                project_path: entry.project_path.clone(),
+                project_name: entry
+                    .project_path
+                    .split('/')
+                    .last()
+                    .unwrap_or(&entry.project_path)
+                    .to_string(),
+                total_cost: 0.0,
+                total_tokens: 0,
+                session_count: 0,
+                last_used: entry.timestamp.clone(),
+            });
+        project_stat.total_cost += entry.cost;
+        project_stat.total_tokens += entry.input_tokens
+            + entry.output_tokens
+            + entry.cache_creation_tokens
+            + entry.cache_read_tokens;
+        project_stat.session_count += 1;
+        if entry.timestamp > project_stat.last_used {
+            project_stat.last_used = entry.timestamp.clone();
+        }
+    }
+
+    let total_tokens = total_input_tokens
+        + total_output_tokens
+        + total_cache_creation_tokens
+        + total_cache_read_tokens;
+    let total_sessions = entries.len() as u64;
+
+    // Convert hashmaps to sorted vectors
+    let mut by_model: Vec<ModelUsage> = model_stats.into_values().collect();
+    by_model.sort_by(|a, b| b.total_cost.partial_cmp(&a.total_cost).unwrap());
+
+    let mut by_date: Vec<DailyUsage> = daily_stats.into_values().collect();
+    by_date.sort_by(|a, b| b.date.cmp(&a.date));
+
+    let mut by_project: Vec<ProjectUsage> = project_stats.into_values().collect();
+    by_project.sort_by(|a, b| b.total_cost.partial_cmp(&a.total_cost).unwrap());
+
+    UsageStats {
+        total_cost,
+        total_tokens,
+        total_input_tokens,
+        total_output_tokens,
+        total_cache_creation_tokens,
+        total_cache_read_tokens,
+        total_sessions,
+        by_model,
+        by_date,
+        by_project,
+    }
+}
+
+#[command]
+pub fn get_usage_stats(days: Option<u32>) -> Result<UsageStats, String> {
+    let claude_path = dirs::home_dir()
+        .ok_or("Failed to get home directory")?
+        .join(".claude");
+
+    let all_entries = get_all_usage_entries(&claude_path);
+
     // Filter by days if specified
-    let filtered_entries = if let Some(days) = days {
+    let filtered_entries: Vec<_> = if let Some(days) = days {
         let cutoff = Local::now().naive_local().date() - chrono::Duration::days(days as i64);
         all_entries
             .into_iter()
@@ -393,124 +655,7 @@ pub fn get_usage_stats(days: Option<u32>) -> Result<UsageStats, String> {
         all_entries
     };
 
-    // Calculate aggregated stats
-    let mut total_cost = 0.0;
-    let mut total_input_tokens = 0u64;
-    let mut total_output_tokens = 0u64;
-    let mut total_cache_creation_tokens = 0u64;
-    let mut total_cache_read_tokens = 0u64;
-
-    let mut model_stats: HashMap<String, ModelUsage> = HashMap::new();
-    let mut daily_stats: HashMap<String, DailyUsage> = HashMap::new();
-    let mut project_stats: HashMap<String, ProjectUsage> = HashMap::new();
-
-    for entry in &filtered_entries {
-        // Update totals
-        total_cost += entry.cost;
-        total_input_tokens += entry.input_tokens;
-        total_output_tokens += entry.output_tokens;
-        total_cache_creation_tokens += entry.cache_creation_tokens;
-        total_cache_read_tokens += entry.cache_read_tokens;
-
-        // Update model stats
-        let model_stat = model_stats
-            .entry(entry.model.clone())
-            .or_insert(ModelUsage {
-                model: entry.model.clone(),
-                total_cost: 0.0,
-                total_tokens: 0,
-                input_tokens: 0,
-                output_tokens: 0,
-                cache_creation_tokens: 0,
-                cache_read_tokens: 0,
-                session_count: 0,
-            });
-        model_stat.total_cost += entry.cost;
-        model_stat.input_tokens += entry.input_tokens;
-        model_stat.output_tokens += entry.output_tokens;
-        model_stat.cache_creation_tokens += entry.cache_creation_tokens;
-        model_stat.cache_read_tokens += entry.cache_read_tokens;
-        model_stat.total_tokens = model_stat.input_tokens + model_stat.output_tokens;
-        model_stat.session_count += 1;
-
-        // Update daily stats
-        let date = entry
-            .timestamp
-            .split('T')
-            .next()
-            .unwrap_or(&entry.timestamp)
-            .to_string();
-        let daily_stat = daily_stats.entry(date.clone()).or_insert(DailyUsage {
-            date,
-            total_cost: 0.0,
-            total_tokens: 0,
-            models_used: vec![],
-        });
-        daily_stat.total_cost += entry.cost;
-        daily_stat.total_tokens += entry.input_tokens
-            + entry.output_tokens
-            + entry.cache_creation_tokens
-            + entry.cache_read_tokens;
-        if !daily_stat.models_used.contains(&entry.model) {
-            daily_stat.models_used.push(entry.model.clone());
-        }
-
-        // Update project stats
-        let project_stat =
-            project_stats
-                .entry(entry.project_path.clone())
-                .or_insert(ProjectUsage {
-                    project_path: entry.project_path.clone(),
-                    project_name: entry
-                        .project_path
-                        .split('/')
-                        .last()
-                        .unwrap_or(&entry.project_path)
-                        .to_string(),
-                    total_cost: 0.0,
-                    total_tokens: 0,
-                    session_count: 0,
-                    last_used: entry.timestamp.clone(),
-                });
-        project_stat.total_cost += entry.cost;
-        project_stat.total_tokens += entry.input_tokens
-            + entry.output_tokens
-            + entry.cache_creation_tokens
-            + entry.cache_read_tokens;
-        project_stat.session_count += 1;
-        if entry.timestamp > project_stat.last_used {
-            project_stat.last_used = entry.timestamp.clone();
-        }
-    }
-
-    let total_tokens = total_input_tokens
-        + total_output_tokens
-        + total_cache_creation_tokens
-        + total_cache_read_tokens;
-    let total_sessions = filtered_entries.len() as u64;
-
-    // Convert hashmaps to sorted vectors
-    let mut by_model: Vec<ModelUsage> = model_stats.into_values().collect();
-    by_model.sort_by(|a, b| b.total_cost.partial_cmp(&a.total_cost).unwrap());
-
-    let mut by_date: Vec<DailyUsage> = daily_stats.into_values().collect();
-    by_date.sort_by(|a, b| b.date.cmp(&a.date));
-
-    let mut by_project: Vec<ProjectUsage> = project_stats.into_values().collect();
-    by_project.sort_by(|a, b| b.total_cost.partial_cmp(&a.total_cost).unwrap());
-
-    Ok(UsageStats {
-        total_cost,
-        total_tokens,
-        total_input_tokens,
-        total_output_tokens,
-        total_cache_creation_tokens,
-        total_cache_read_tokens,
-        total_sessions,
-        by_model,
-        by_date,
-        by_project,
-    })
+    Ok(aggregate_entries(&filtered_entries))
 }
 
 #[command]
@@ -521,19 +666,24 @@ pub fn get_usage_by_date_range(start_date: String, end_date: String) -> Result<U
 
     let all_entries = get_all_usage_entries(&claude_path);
 
-    // Parse dates
-    let start = NaiveDate::parse_from_str(&start_date, "%Y-%m-%d").or_else(|_| {
-        // Try parsing ISO datetime format
-        DateTime::parse_from_rfc3339(&start_date)
-            .map(|dt| dt.naive_local().date())
-            .map_err(|e| format!("Invalid start date: {}", e))
-    })?;
-    let end = NaiveDate::parse_from_str(&end_date, "%Y-%m-%d").or_else(|_| {
-        // Try parsing ISO datetime format
-        DateTime::parse_from_rfc3339(&end_date)
-            .map(|dt| dt.naive_local().date())
-            .map_err(|e| format!("Invalid end date: {}", e))
-    })?;
+    // Parse dates - support multiple formats
+    let parse_date = |date_str: &str| -> Result<NaiveDate, String> {
+        // Try YYYY-MM-DD format
+        NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
+            .or_else(|_| {
+                // Try YYYYMMDD format
+                NaiveDate::parse_from_str(date_str, "%Y%m%d")
+            })
+            .or_else(|_| {
+                // Try parsing ISO datetime format
+                DateTime::parse_from_rfc3339(date_str)
+                    .map(|dt| dt.naive_local().date())
+            })
+            .map_err(|e| format!("Invalid date '{}': {}", date_str, e))
+    };
+
+    let start = parse_date(&start_date)?;
+    let end = parse_date(&end_date)?;
 
     // Filter entries by date range
     let filtered_entries: Vec<_> = all_entries
@@ -548,139 +698,7 @@ pub fn get_usage_by_date_range(start_date: String, end_date: String) -> Result<U
         })
         .collect();
 
-    if filtered_entries.is_empty() {
-        return Ok(UsageStats {
-            total_cost: 0.0,
-            total_tokens: 0,
-            total_input_tokens: 0,
-            total_output_tokens: 0,
-            total_cache_creation_tokens: 0,
-            total_cache_read_tokens: 0,
-            total_sessions: 0,
-            by_model: vec![],
-            by_date: vec![],
-            by_project: vec![],
-        });
-    }
-
-    // Calculate aggregated stats (same logic as get_usage_stats)
-    let mut total_cost = 0.0;
-    let mut total_input_tokens = 0u64;
-    let mut total_output_tokens = 0u64;
-    let mut total_cache_creation_tokens = 0u64;
-    let mut total_cache_read_tokens = 0u64;
-
-    let mut model_stats: HashMap<String, ModelUsage> = HashMap::new();
-    let mut daily_stats: HashMap<String, DailyUsage> = HashMap::new();
-    let mut project_stats: HashMap<String, ProjectUsage> = HashMap::new();
-
-    for entry in &filtered_entries {
-        // Update totals
-        total_cost += entry.cost;
-        total_input_tokens += entry.input_tokens;
-        total_output_tokens += entry.output_tokens;
-        total_cache_creation_tokens += entry.cache_creation_tokens;
-        total_cache_read_tokens += entry.cache_read_tokens;
-
-        // Update model stats
-        let model_stat = model_stats
-            .entry(entry.model.clone())
-            .or_insert(ModelUsage {
-                model: entry.model.clone(),
-                total_cost: 0.0,
-                total_tokens: 0,
-                input_tokens: 0,
-                output_tokens: 0,
-                cache_creation_tokens: 0,
-                cache_read_tokens: 0,
-                session_count: 0,
-            });
-        model_stat.total_cost += entry.cost;
-        model_stat.input_tokens += entry.input_tokens;
-        model_stat.output_tokens += entry.output_tokens;
-        model_stat.cache_creation_tokens += entry.cache_creation_tokens;
-        model_stat.cache_read_tokens += entry.cache_read_tokens;
-        model_stat.total_tokens = model_stat.input_tokens + model_stat.output_tokens;
-        model_stat.session_count += 1;
-
-        // Update daily stats
-        let date = entry
-            .timestamp
-            .split('T')
-            .next()
-            .unwrap_or(&entry.timestamp)
-            .to_string();
-        let daily_stat = daily_stats.entry(date.clone()).or_insert(DailyUsage {
-            date,
-            total_cost: 0.0,
-            total_tokens: 0,
-            models_used: vec![],
-        });
-        daily_stat.total_cost += entry.cost;
-        daily_stat.total_tokens += entry.input_tokens
-            + entry.output_tokens
-            + entry.cache_creation_tokens
-            + entry.cache_read_tokens;
-        if !daily_stat.models_used.contains(&entry.model) {
-            daily_stat.models_used.push(entry.model.clone());
-        }
-
-        // Update project stats
-        let project_stat =
-            project_stats
-                .entry(entry.project_path.clone())
-                .or_insert(ProjectUsage {
-                    project_path: entry.project_path.clone(),
-                    project_name: entry
-                        .project_path
-                        .split('/')
-                        .last()
-                        .unwrap_or(&entry.project_path)
-                        .to_string(),
-                    total_cost: 0.0,
-                    total_tokens: 0,
-                    session_count: 0,
-                    last_used: entry.timestamp.clone(),
-                });
-        project_stat.total_cost += entry.cost;
-        project_stat.total_tokens += entry.input_tokens
-            + entry.output_tokens
-            + entry.cache_creation_tokens
-            + entry.cache_read_tokens;
-        project_stat.session_count += 1;
-        if entry.timestamp > project_stat.last_used {
-            project_stat.last_used = entry.timestamp.clone();
-        }
-    }
-
-    let total_tokens = total_input_tokens
-        + total_output_tokens
-        + total_cache_creation_tokens
-        + total_cache_read_tokens;
-    let total_sessions = filtered_entries.len() as u64;
-
-    // Convert hashmaps to sorted vectors
-    let mut by_model: Vec<ModelUsage> = model_stats.into_values().collect();
-    by_model.sort_by(|a, b| b.total_cost.partial_cmp(&a.total_cost).unwrap());
-
-    let mut by_date: Vec<DailyUsage> = daily_stats.into_values().collect();
-    by_date.sort_by(|a, b| b.date.cmp(&a.date));
-
-    let mut by_project: Vec<ProjectUsage> = project_stats.into_values().collect();
-    by_project.sort_by(|a, b| b.total_cost.partial_cmp(&a.total_cost).unwrap());
-
-    Ok(UsageStats {
-        total_cost,
-        total_tokens,
-        total_input_tokens,
-        total_output_tokens,
-        total_cache_creation_tokens,
-        total_cache_read_tokens,
-        total_sessions,
-        by_model,
-        by_date,
-        by_project,
-    })
+    Ok(aggregate_entries(&filtered_entries))
 }
 
 #[command]

@@ -15,22 +15,31 @@ function AppContent() {
   useEffect(() => {
     // Initialize the cache in the background
     invoke("init_usage_cache").catch(console.error);
-    
+
+    let interval: ReturnType<typeof setInterval> | null = null;
+
     const checkDataReady = async () => {
       try {
         // Quick test call to see if data is cached
         await api.getUsageStats();
         setDataReady(true);
+        // Stop polling once data is ready
+        if (interval) {
+          clearInterval(interval);
+          interval = null;
+        }
       } catch {
         // Data not ready yet
       }
     };
 
     // Check every 2 seconds if data is ready
-    const interval = setInterval(checkDataReady, 2000);
+    interval = setInterval(checkDataReady, 2000);
     checkDataReady(); // Check immediately
 
-    return () => clearInterval(interval);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, []);
 
   const handleViewDashboard = async () => {
