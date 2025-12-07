@@ -1,12 +1,12 @@
-# Claudia Usage Dashboard
+# Claude Code Usage Dashboard
 
 **A focused desktop application for tracking and analyzing your Claude Code usage and costs.**
 
-![Claudia Usage Dashboard Screenshot](screenshots/Screenshot%202025-07-18%20at%2018.01.55.png)
+![Claude Code Usage Dashboard Screenshot](screenshots/Screenshot%202025-07-18%20at%2018.01.55.png)
 
 ## 🌟 Overview
 
-Claudia Usage Dashboard is a lightweight desktop application that analyzes your existing Claude Code session logs and provides detailed usage analytics. Built with Tauri 2 for optimal performance, it reads from your `~/.claude/projects/` directory to display costs, token consumption, and usage patterns.
+Claude Code Usage Dashboard is a lightweight desktop application that analyzes your existing Claude Code session logs and provides detailed usage analytics. Built with Tauri 2 for optimal performance, it reads from your `~/.claude/projects/` directory to display costs, token consumption, and usage patterns.
 
 ## ✨ Features
 
@@ -89,7 +89,7 @@ This project is licensed under the AGPL License - see the [LICENSE](LICENSE) fil
 ## 🙏 Acknowledgments
 
 - Built with [Tauri](https://tauri.app/)
-- Forked from [Claudia](https://github.com/getAsterisk/claudia) by Asterisk
+- Originally forked from [Opcode](https://github.com/getAsterisk/opcode) (formerly Claudia)
 
 ---
 

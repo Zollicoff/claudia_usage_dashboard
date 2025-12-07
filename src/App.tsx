@@ -81,7 +81,7 @@ function AppContent() {
         <div className="text-center space-y-8 max-w-2xl">
           <div className="space-y-4">
             <h1 className="text-5xl font-bold tracking-tight">
-              Claudia Usage Dashboard
+              Claude Code Usage Dashboard
             </h1>
             <p className="text-xl text-muted-foreground">
               Track your Claude Code usage, costs, and analytics
